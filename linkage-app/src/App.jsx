@@ -4,78 +4,119 @@ import { get, set } from 'idb-keyval';
 import Header from '../components/Header';
 
 function App() {
+  const [rootHandle, setRootHandle] = useState(null);
   const [vaults, setVaults] = useState([]); 
   const [fileHandles, setFileHandles] = useState([]);
   const [linkageData, setLinkageData] = useState(null); 
   const [selectedFileName, setSelectedFileName] = useState("");
   const [dragChain, setDragChain] = useState(null);
-  const [configHandle, setConfigHandle] = useState(null);
   const viewportRef = useRef(null);
 
-  // --- 1. TỰ ĐỘNG KHÔI PHỤC KẾT NỐI ---
+  const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f' };
+  const rankStrokeMap = { 1: '#000000', 2: '#ffffff', 3: '#0000FF', 4: '#FFD700' };
+
+  // --- HELPER TRUY XUẤT ---
+  const getFolderByPath = async (root, pathArray) => {
+    let current = root;
+    for (const name of pathArray) {
+      current = await current.getDirectoryHandle(name);
+    }
+    return current;
+  };
+
+  // --- 1. KHÔI PHỤC KẾT NỐI ---
   useEffect(() => {
     const init = async () => {
-      const savedConfigHandle = await get('master_config_handle');
-      if (savedConfigHandle) {
-        const permission = await savedConfigHandle.queryPermission({ mode: 'readwrite' });
-        if (permission === 'granted') await loadConfigData(savedConfigHandle);
+      const savedRoot = await get('master_root_handle');
+      if (savedRoot) {
+        const permission = await savedRoot.queryPermission({ mode: 'readwrite' });
+        if (permission === 'granted') await setupProject(savedRoot);
       }
     };
     init();
   }, []);
 
-  const loadConfigData = async (handle) => {
+  const setupProject = async (handle) => {
+    setRootHandle(handle);
     try {
-      const file = await handle.getFile();
+      const dataFolder = await handle.getDirectoryHandle('data', { create: true });
+      const vaultFileHandle = await dataFolder.getFileHandle('Vault.json', { create: true });
+      const file = await vaultFileHandle.getFile();
       const text = await file.text();
-      const data = JSON.parse(text);
-      const savedHandles = await get('linkage_vaults_handles') || [];
-      setVaults(savedHandles);
-      setConfigHandle(handle);
-      if (savedHandles.length > 0) handleSwitchVault(savedHandles[0]);
-    } catch (err) { console.error("Config Load Error:", err); }
+      
+      let config = { vaults: [] };
+      try { config = text ? JSON.parse(text) : { vaults: [] }; } catch(e) {}
+      
+      const loadedVaults = [];
+      if (config.vaults && Array.isArray(config.vaults)) {
+        for (const v of config.vaults) {
+          try {
+            if (v.path) {
+              const vHandle = await getFolderByPath(handle, v.path);
+              loadedVaults.push(vHandle);
+            }
+          } catch (e) { console.warn(`Missing: ${v.name}`); }
+        }
+      }
+      setVaults(loadedVaults);
+      if (loadedVaults.length > 0) loadFilesAndSelectFirst(loadedVaults[0]);
+    } catch (err) { console.error("Setup error:", err); }
   };
 
-  // --- 2. TƯƠNG TÁC FILE LOCAL (VAULT.JSON) ---
-  const handleSelectMasterConfig = async () => {
+  const handleSelectMasterFolder = async () => {
     try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: 'JSON Config', accept: { 'application/json': ['.json'] } }]
-      });
-      await set('master_config_handle', handle);
-      await loadConfigData(handle);
-    } catch (err) { console.warn("Selection cancelled"); }
+      const handle = await window.showDirectoryPicker();
+      await set('master_root_handle', handle);
+      await setupProject(handle);
+    } catch (err) { }
   };
 
-  const saveToVaultJson = async (updatedVaults) => {
-    if (!configHandle) return;
+  // --- 2. LOGIC LƯU PATH VÀO JSON (SỬA LẠI CHUẨN) ---
+  const saveToVaultJson = async (updatedVaultHandles) => {
+    if (!rootHandle) return;
     try {
-      const writable = await configHandle.createWritable();
-      const configText = JSON.stringify({ 
-        vaults: updatedVaults.map(v => ({ name: v.name })) 
-      }, null, 2);
-      await writable.write(configText);
+      const dataFolder = await rootHandle.getDirectoryHandle('data');
+      const vaultFileHandle = await dataFolder.getFileHandle('Vault.json');
+      const writable = await vaultFileHandle.createWritable();
+      
+      // Chuyển đổi mảng Handle thành mảng Path JSON
+      const vaultDataForJson = [];
+      for (const vh of updatedVaultHandles) {
+        const path = await rootHandle.resolve(vh);
+        if (path) {
+          vaultDataForJson.push({ name: vh.name, path: path });
+        }
+      }
+
+      await writable.write(JSON.stringify({ vaults: vaultDataForJson }, null, 2));
       await writable.close();
-    } catch (err) { console.error("Write Error:", err); }
+      console.log("Vault.json synced with relative paths.");
+    } catch (err) { console.error("Write error:", err); }
   };
 
   const handleAddNewVault = async () => {
+    if (!rootHandle) return;
     try {
       const directoryHandle = await window.showDirectoryPicker();
-      if (!vaults.find(v => v.name === directoryHandle.name)) {
+      const relativePath = await rootHandle.resolve(directoryHandle);
+      
+      if (!relativePath) {
+        alert("Lỗi: Vault phải nằm bên trong Master Folder!");
+        return;
+      }
+
+      const isExist = vaults.some(v => v.name === directoryHandle.name);
+      if (!isExist) {
         const newList = [...vaults, directoryHandle];
         setVaults(newList);
-        await set('linkage_vaults_handles', newList);
-        await saveToVaultJson(newList);
+        await saveToVaultJson(newList); // Ghi file JSON với mảng path
       }
       await loadFilesAndSelectFirst(directoryHandle);
-    } catch (err) { console.warn("Picker cancelled"); }
+    } catch (err) { }
   };
 
-  const handleSwitchVault = async (directoryHandle) => {
-    const permission = await directoryHandle.requestPermission({ mode: 'read' });
-    if (permission === 'granted') await loadFilesAndSelectFirst(directoryHandle);
-  };
+  // --- CÁC LOGIC ENGINE (GIỮ NGUYÊN) ---
+  const handleSwitchVault = async (handle) => await loadFilesAndSelectFirst(handle);
 
   const loadFilesAndSelectFirst = async (directoryHandle) => {
     const files = [];
@@ -97,7 +138,7 @@ function App() {
     }
   };
 
-  // --- 3. JELLY ENGINE (GIỮ NGUYÊN) ---
+  // --- RENDER & SVG LOGIC (GIỮ NGUYÊN NHƯ BẢN TRƯỚC) ---
   const { nodes, edges } = useMemo(() => {
     if (!linkageData) return { nodes: [], edges: [] };
     const db = linkageData;
@@ -165,15 +206,12 @@ function App() {
     };
   }, [dragChain, nodes]);
 
-  const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f' };
-  const rankStrokeMap = { 1: '#000000', 2: '#ffffff', 3: '#0000FF', 4: '#FFD700' };
-
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'monospace', userSelect: 'none' }}>
       <Header 
-        onFolderOpen={handleAddNewVault} 
-        onConfigOpen={handleSelectMasterConfig}
-        configLoaded={!!configHandle}
+        onConfigOpen={handleSelectMasterFolder}
+        configLoaded={!!rootHandle}
+        onFolderOpen={handleAddNewVault}
         selectedFile={selectedFileName} 
         vaults={vaults}
         onSwitchVault={handleSwitchVault}

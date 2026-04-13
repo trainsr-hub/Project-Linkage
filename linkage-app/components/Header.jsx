@@ -1,12 +1,12 @@
 import React from 'react';
 
 const Header = ({ 
-  onFolderOpen, 
   onConfigOpen, 
   configLoaded, 
   selectedFile, 
   vaults, 
-  onSwitchVault 
+  onSwitchVault,
+  onFolderOpen 
 }) => {
   return (
     <div style={{ 
@@ -19,7 +19,7 @@ const Header = ({
       zIndex: 100,
       userSelect: 'none'
     }}>
-      <h2 style={{ color: '#00ffff', margin: 0, fontSize: '18px' }}>LINKAGE</h2>
+      <h2 style={{ color: '#00ffff', margin: 0, fontSize: '18px' }}>LINKAGE SYSTEM</h2>
       
       {!configLoaded ? (
         <button 
@@ -28,13 +28,13 @@ const Header = ({
             backgroundColor: '#ff4444', 
             color: '#fff', 
             border: 'none', 
-            padding: '6px 12px', 
+            padding: '6px 15px', 
             borderRadius: '4px', 
             cursor: 'pointer',
             fontWeight: 'bold'
           }}
         >
-          CONNECT CONFIG (Vault.json)
+          CONNECT MASTER FOLDER
         </button>
       ) : (
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -53,14 +53,14 @@ const Header = ({
               outline: 'none'
             }}
           >
-            <option value="">-- Switch Vault --</option>
+            <option value="">-- Select Vault --</option>
             {vaults.map(v => (
               <option key={v.name} value={v.name}>{v.name}</option>
             ))}
           </select>
 
           <button 
-            onClick={onFolderOpen} 
+            onClick={onFolderOpen}
             style={{ 
               backgroundColor: '#222', 
               color: '#00ffff', 
@@ -76,15 +76,16 @@ const Header = ({
         </div>
       )}
 
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ color: '#444', fontSize: '11px' }}>STATUS: {configLoaded ? 'CONNECTED' : 'OFFLINE'}</span>
-        <span style={{ color: '#888', fontSize: '12px', borderLeft: '1px solid #333', paddingLeft: '10px' }}>
-          FILE: <span style={{ color: '#00ffff' }}>{selectedFile || "NONE"}</span>
-        </span>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <span style={{ color: '#444', fontSize: '10px' }}>MASTER ACCESS: {configLoaded ? 'GRANTED' : 'LOCKED'}</span>
+          <span style={{ color: '#888', fontSize: '12px' }}>
+            FILE: <span style={{ color: '#00ffff' }}>{selectedFile || "NONE"}</span>
+          </span>
+        </div>
       </div>
     </div>
   );
 };
 
-// Dòng này cực kỳ quan trọng để sửa lỗi SyntaxError của ông
 export default Header;
