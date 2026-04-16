@@ -8,8 +8,10 @@ const Sidebar = ({
   setLinkMode, 
   isParallel, 
   setIsParallel, 
-  writingMode,    // Prop nhận từ App
-  setWritingMode, // Prop nhận từ App
+  writingMode, 
+  setWritingMode,
+  isInversionView,      // Prop mới từ App
+  onToggleInversionView, // Hàm toggle từ App
   onSave,
   editingNode, 
   onUpdateNode, 
@@ -17,34 +19,31 @@ const Sidebar = ({
 }) => {
   const nameInputRef = useRef(null);
 
-  // LOGIC: Global Typing Catch (Fix duplicate, Enter/Shift+Enter & Writing Mode)
-useEffect(() => {
+  // LOGIC: Global Typing Catch
+  useEffect(() => {
     const handleGlobalTyping = (e) => {
       const activeEl = document.activeElement;
       const isInputFocused = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA';
       
       if (editingNode) {
-        // --- 1. XỬ LÝ PHÍM ESC (LUÔN LÀ HỦY CHỌN) ---
+        // --- 1. XỬ LÝ ESC (HỦY CHỌN) ---
         if (e.key === 'Escape') {
           e.preventDefault();
           if (isInputFocused) activeEl.blur();
-          onCloseEditor(); // Đóng Sidebar, Node hết hồng
+          onCloseEditor();
           return;
         }
 
-        // --- 2. XỬ LÝ PHÍM ENTER ---
+        // --- 2. XỬ LÝ ENTER ---
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          
           if (isInputFocused) activeEl.blur();
 
           if (writingMode) {
-            // MODE WRITING: Đẻ con (Reborn)
             window.dispatchEvent(new CustomEvent('reborn-node', { 
               detail: { sourceId: editingNode.id } 
             }));
           } else {
-            // MODE NONE-WRITING: Tạm thời vẫn là Hủy chọn giống ESC
             onCloseEditor(); 
           }
           return;
@@ -66,6 +65,7 @@ useEffect(() => {
     window.addEventListener('keydown', handleGlobalTyping);
     return () => window.removeEventListener('keydown', handleGlobalTyping);
   }, [editingNode, onUpdateNode, writingMode, onCloseEditor]);
+
   return (
     <div style={{ width: '220px', borderRight: '1px solid #222', padding: '10px', backgroundColor: '#0d0d0d', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       
@@ -122,6 +122,7 @@ useEffect(() => {
                 <option value="G">Green</option>
                 <option value="Y">Yellow</option>
                 <option value="P">Purple</option>
+                <option value="W">White</option>
               </select>
             </label>
 
@@ -141,7 +142,6 @@ useEffect(() => {
       {/* 3. CONTROL PANEL */}
       <div style={{ padding: '10px 0', borderTop: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         
-        {/* NÚT TOGGLE WRITING MODE */}
         <div style={{ fontSize: '10px', color: '#555' }}>CHẾ ĐỘ NHẬP</div>
         <button 
           onClick={() => setWritingMode(!writingMode)} 
@@ -154,6 +154,21 @@ useEffect(() => {
           }}
         >
           {writingMode ? 'WRITING MODE: ON' : 'WRITING MODE: OFF'}
+        </button>
+
+        {/* --- NÚT INVERSION VIEW MỚI --- */}
+        <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>GÓC NHÌN</div>
+        <button 
+          onClick={onToggleInversionView} 
+          style={{ 
+            width: '100%', fontSize: '10px', padding: '8px', 
+            backgroundColor: isInversionView ? '#f1c40f' : '#222', 
+            color: isInversionView ? '#000' : '#fff', 
+            border: 'none', borderRadius: '3px', cursor: 'pointer',
+            fontWeight: 'bold', transition: '0.2s ease'
+          }}
+        >
+          {isInversionView ? 'VIEW: INVERTED' : 'VIEW: NORMAL'}
         </button>
 
         <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>ÂM DƯƠNG</div>

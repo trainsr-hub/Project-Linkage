@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react'; // Thêm useMemo để tối ưu
 
 // Hàm helper chuyển đổi rank sang số La Mã
 const getRomanRank = (rank) => {
@@ -15,12 +15,28 @@ const GraphViewport = ({
   editingNodeId,
   multiSelectedIds = [], 
   onNodeMouseDown, 
-  onNodeContextMenu,
   onViewportMouseDown, 
   onViewportDoubleClick, 
+  onOpenImage, 
   colorMap, 
   rankStrokeMap 
 }) => {
+
+  // LOGIC GIÃN NỞ: Tự động tính toán chiều ngang (maxX) và chiều dọc (maxY)
+  const { canvasWidth, canvasHeight } = useMemo(() => {
+    // Nếu chưa có node nào, mặc định cho 3000px để làm việc
+    if (nodes.length === 0) return { canvasWidth: 3000, canvasHeight: 3000 };
+
+    // Tìm node nằm xa nhất bên phải và sâu nhất bên dưới
+    const maxX = Math.max(...nodes.map(n => n.x)) + 1000; // Cộng thêm 1000px đệm để vẩy chuột
+    const maxY = Math.max(...nodes.map(n => n.y)) + 1000;
+
+    return {
+      canvasWidth: Math.max(maxX, 10000), // Không bao giờ nhỏ hơn 4000px
+      canvasHeight: Math.max(maxY, 4000)
+    };
+  }, [nodes]);
+
   return (
     <div 
       ref={viewportRef} 
@@ -46,9 +62,23 @@ const GraphViewport = ({
         cursor: sliceLine ? 'crosshair' : 'default' 
       }}
     >
-      <div style={{ position: 'absolute', width: '4000px', height: '4000px', backgroundImage: 'radial-gradient(#222 1px, transparent 1px)', backgroundSize: '30px 30px', opacity: 0.5 }} />
+      {/* GRID NỀN: Sử dụng kích thước động canvasWidth/canvasHeight */}
+      <div style={{ 
+        position: 'absolute', 
+        width: `${canvasWidth}px`, 
+        height: `${canvasHeight}px`, 
+        backgroundImage: 'radial-gradient(#222 1px, transparent 1px)', 
+        backgroundSize: '30px 30px', 
+        opacity: 0.5 
+      }} />
       
-      <svg style={{ position: 'absolute', width: '4000px', height: '4000px', top: 0, left: 0, pointerEvents: 'none' }}>
+      {/* SVG LAYER: Sử dụng kích thước động canvasWidth/canvasHeight */}
+      <svg style={{ 
+        position: 'absolute', 
+        width: `${canvasWidth}px`, 
+        height: `${canvasHeight}px`, 
+        top: 0, left: 0, pointerEvents: 'none' 
+      }}>
         {edges.map((edge, i) => (
           <line key={i} x1={edge.fromX} y1={edge.fromY} x2={edge.toX} y2={edge.toY} stroke="#ffffff22" strokeWidth="1" />
         ))}
@@ -85,57 +115,79 @@ const GraphViewport = ({
         )}
       </svg>
 
+      {/* NODE LAYER */}
       {nodes.map((node) => {
         const isInChain = dragChain?.nodeIds.includes(node.id);
         const isEditing = editingNodeId === node.id;
         const isMultiSelected = multiSelectedIds.includes(node.id);
+        
+        const bgImage = node.image 
+          ? `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${node.image})` 
+          : 'none';
 
-// ... Trong nodes.map((node) => { ...
+        return (
+          <div 
+            key={node.id} 
+            onMouseDown={(e) => {
+              e.stopPropagation(); 
+              onNodeMouseDown(e, node.id);
+            }}
+            onDoubleClick={(e) => {
+              if (node.image && onOpenImage) {
+                e.stopPropagation();
+                onOpenImage(node.image);
+              }
+            }}
+            style={{ 
+              position: 'absolute', left: node.x, top: node.y, width: '190px', height: '55px', 
+              backgroundColor: colorMap[node.color] || '#333', 
+              backgroundImage: bgImage,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              color: (node.color === 'G' || node.color === 'Y' || node.color === 'W') ? '#000' : '#fff', 
+              border: (isEditing || isMultiSelected) 
+                ? '3px solid #ff00ff' 
+                : `${node.rank > 0 ? '3px' : '1px'} solid ${isInChain ? '#00ffff' : rankStrokeMap[node.rank] || 'transparent'}`, 
+              borderRadius: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              textAlign: 'center', 
+              fontSize: '11px', 
+              fontWeight: 'bold', 
+              zIndex: 10, 
+              boxShadow: (isEditing || isMultiSelected) 
+                ? '0 0 20px #ff00ff' 
+                : (isInChain ? '0 0 15px #00ffff' : '0 4px 10px rgba(0,0,0,0.5)'), 
+              cursor: node.image ? 'zoom-in' : 'crosshair',
+              transition: 'transform 0.1s, box-shadow 0.1s',
+              whiteSpace: 'pre-wrap', 
+              lineHeight: '1.2',
+              padding: '5px',
+              overflow: 'hidden'
+            }}
+          >
+            <span style={{ position: 'relative', zIndex: 2 }}>
+              {node.name}
+            </span>
 
-      return (
-        <div 
-          key={node.id} 
-          onMouseDown={(e) => {
-            e.stopPropagation(); 
-            onNodeMouseDown(e, node.id);
-          }}
-          style={{ 
-            position: 'absolute', left: node.x, top: node.y, width: '190px', height: '55px', 
-            backgroundColor: colorMap[node.color], 
-            color: (node.color === 'G' || node.color === 'Y') ? '#000' : '#fff', 
-            border: (isEditing || isMultiSelected) 
-              ? '3px solid #ff00ff' 
-              : `${node.rank > 0 ? '3px' : '1px'} solid ${isInChain ? '#00ffff' : rankStrokeMap[node.rank] || 'transparent'}`, 
-            borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', zIndex: 10, 
-            boxShadow: (isEditing || isMultiSelected) 
-              ? '0 0 20px #ff00ff' 
-              : (isInChain ? '0 0 15px #00ffff' : '0 4px 10px rgba(0,0,0,0.5)'), 
-            cursor: 'crosshair',
-            transition: 'transform 0.1s, box-shadow 0.1s',
-            whiteSpace: 'pre-wrap', // Quan trọng: Để nhận diện \n
-            lineHeight: '1.2'
-          }}
-        >
-          {/* Tên hiển thị */}
-          {node.displayName}
-
-          {/* Rank - Số La Mã ở góc DƯỚI bên phải */}
-          {node.rank > 0 && (
-            <div style={{
-              position: 'absolute',
-              bottom: '4px', // Thay đổi từ top sang bottom
-              right: '8px',
-              fontSize: '10px',
-              fontFamily: '"Times New Roman", serif',
-              opacity: 0.8,
-              pointerEvents: 'none',
-              lineHeight: '1' // Đảm bảo không bị đẩy dòng
-            }}>
-              {getRomanRank(node.rank)}
-            </div>
-          )}
-        </div>
-      );
+            {node.rank > 0 && (
+              <div style={{
+                position: 'absolute',
+                bottom: '4px', 
+                right: '8px',
+                fontSize: '10px',
+                fontFamily: '"Times New Roman", serif',
+                opacity: 0.9,
+                pointerEvents: 'none',
+                lineHeight: '1',
+                zIndex: 3
+              }}>
+                {getRomanRank(node.rank)}
+              </div>
+            )}
+          </div>
+        );
       })}
     </div>
   );

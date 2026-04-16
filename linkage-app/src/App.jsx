@@ -6,6 +6,7 @@ import Header from './components/Header';
 import { parseLinkageFile, composeLinkageFile } from './utils/fileProcessor';
 import { calculateLayout } from './utils/layoutEngine';
 
+// ... (Hàm checkIntersection giữ nguyên)
 function checkIntersection(p1, p2, p3, p4) {
   const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
   if (det === 0) return false;
@@ -15,6 +16,7 @@ function checkIntersection(p1, p2, p3, p4) {
 }
 
 function App() {
+  // --- STATES (Giữ nguyên các state cũ) ---
   const [rootHandle, setRootHandle] = useState(null);
   const [vaults, setVaults] = useState([]); 
   const [fileHandles, setFileHandles] = useState([]);
@@ -22,8 +24,9 @@ function App() {
   const [historyStack, setHistoryStack] = useState([]);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [activeFileHandle, setActiveFileHandle] = useState(null);
-  const [showToast, setShowToast] = useState(false); // State cho thông báo Save
-  
+  const [showToast, setShowToast] = useState(false); 
+  const [previewImage, setPreviewImage] = useState(null);
+
   const [dragChain, setDragChain] = useState(null);
   const [sliceLine, setSliceLine] = useState(null);
   const [editingNodeId, setEditingNodeId] = useState(null); 
@@ -32,12 +35,63 @@ function App() {
   const [linkMode, setLinkMode] = useState(1); 
   const [isParallel, setIsParallel] = useState(false); 
   const [writingMode, setWritingMode] = useState(true); 
+  const [isInversionView, setIsInversionView] = useState(false);
 
   const viewportRef = useRef(null);
-  const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f' };
+  const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f', 'W':'#ffffff' };
   const rankStrokeMap = { 1: '#000000', 2: '#ffffff', 3: '#0000FF', 4: '#FFD700' };
 
-  const { nodes, edges } = useMemo(() => calculateLayout(linkageData), [linkageData]);
+  // --- LOGIC TỰ ĐỘNG TĂNG TÊN (Bản cập nhật chống trùng bồ đã dùng) ---
+  const getNextNodeName = (sourceName, allData) => {
+    if (!sourceName) return "New Node";
+    const safeData = allData || {};
+    const match = sourceName.match(/(.*?)(\d+)$/);
+    let prefix = sourceName;
+    let startNum = 0;
+    let padLen = 0;
+
+    if (match) {
+      prefix = match[1];
+      startNum = parseInt(match[2], 10);
+      padLen = match[2].length;
+    }
+
+    const existingNames = Object.values(safeData).map(n => n.name);
+    let nextNum = startNum + 1;
+    let finalName = "";
+
+    while (true) {
+      const numStr = padLen > 0 ? nextNum.toString().padStart(padLen, '0') : nextNum.toString();
+      finalName = prefix + numStr;
+      if (!existingNames.includes(finalName)) break;
+      nextNum++;
+    }
+    return finalName;
+  };
+
+  // --- TÍNH TOÁN LAYOUT ---
+  const { nodes, edges } = useMemo(() => {
+    if (!linkageData) return { nodes: [], edges: [] };
+    let processedData = linkageData;
+    if (isInversionView) {
+      const invertedData = {};
+      Object.keys(linkageData).forEach(id => { invertedData[id] = { ...linkageData[id], links_to: [] }; });
+      Object.keys(linkageData).forEach(srcId => {
+        (linkageData[srcId].links_to || []).forEach(tgtId => {
+          if (invertedData[tgtId]) invertedData[tgtId].links_to.push(srcId);
+        });
+      });
+      processedData = invertedData;
+    }
+    return calculateLayout(processedData);
+  }, [linkageData, isInversionView]);
+
+  // --- HANDLERS (Giữ nguyên logic chính) ---
+  const toggleInversionView = () => {
+    const next = !isInversionView;
+    setIsInversionView(next);
+    setLinkMode(next ? 2 : 1);
+  };
 
   const updateLinkageDataWithHistory = (newData) => {
     if (JSON.stringify(newData) === JSON.stringify(linkageData)) return;
@@ -57,6 +111,7 @@ function App() {
     setMultiSelectedIds([]);
   };
 
+  // ... (Các hàm useEffect, setupProject, loadFiles, handleFileSelect, handleSave giữ nguyên)
   useEffect(() => {
     const init = async () => {
       const savedRoot = await get('master_root_handle');
@@ -65,35 +120,34 @@ function App() {
     init();
   }, []);
 
-  // LOGIC REBORN (ENTER TẠO NODE)
   useEffect(() => {
     const handleReborn = (e) => {
       if (!writingMode) return; 
-
       const { sourceId } = e.detail;
       const sourceNode = linkageData[sourceId];
       if (!sourceNode) return;
-
       const newId = `node_${Date.now()}`;
-      const newNode = { name: "New Node", color: sourceNode.color, rank: sourceNode.rank, links_to: [] };
-
-      const newData = {};
-      Object.keys(linkageData).forEach(key => {
-        newData[key] = linkageData[key];
-        if (key === sourceId) {
-          newData[newId] = newNode;
-          newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
-        }
-      });
-
+      const newNode = { 
+        name: getNextNodeName(sourceNode.name, linkageData), 
+        color: sourceNode.color, 
+        rank: sourceNode.rank, 
+        image: sourceNode.image || "",
+        links_to: [] 
+      };
+      const newData = { ...linkageData };
+      newData[newId] = newNode;
+      if (linkMode === 1) {
+        newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
+      } else {
+        newData[newId].links_to = [sourceId];
+      }
       updateLinkageDataWithHistory(newData);
       setEditingNodeId(newId);
       setMultiSelectedIds([newId]);
     };
-
     window.addEventListener('reborn-node', handleReborn);
     return () => window.removeEventListener('reborn-node', handleReborn);
-  }, [linkageData, writingMode]);
+  }, [linkageData, writingMode, linkMode]);
 
   const setupProject = async (handle) => {
     setRootHandle(handle);
@@ -144,18 +198,14 @@ function App() {
       const writable = await activeFileHandle.createWritable();
       await writable.write(composeLinkageFile(part1, linkageData, part3));
       await writable.close();
-      
-      // Hiện thông báo thành công
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2000);
-    } catch (err) {
-      console.error("Lưu thất bại:", err);
-    }
+    } catch (err) { console.error("Lưu thất bại:", err); }
   };
 
   const handleCreateNode = (x, y) => {
     const newId = `node_${Date.now()}`;
-    const newData = { ...linkageData, [newId]: { name: "New Node", color: "B", rank: 0, links_to: [] } };
+    const newData = { ...linkageData, [newId]: { name: "New Node", color: "B", rank: 2, links_to: [] } };
     updateLinkageDataWithHistory(newData);
     setEditingNodeId(newId);
     setMultiSelectedIds([newId]);
@@ -177,29 +227,12 @@ function App() {
     setMultiSelectedIds([]);
   };
 
-  // --- HỆ THỐNG HOTKEYS (CTRL+S, CTRL+Z, DELETE) ---
   useEffect(() => {
     const onKeyDown = (e) => {
       const isTyping = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA';
-      
-      // Ctrl + S: Lưu
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        handleSave();
-        return;
-      }
-      
-      // Ctrl + Z: Hoàn tác
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        undo();
-        return;
-      }
-
-      // Delete/Backspace: Xóa
-      if ((e.key === 'Delete' || e.key === 'Backspace') && (editingNodeId || multiSelectedIds.length > 0) && !isTyping) {
-        handleDeleteNode(editingNodeId);
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); handleSave(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (editingNodeId || multiSelectedIds.length > 0) && !isTyping) { handleDeleteNode(editingNodeId); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -209,7 +242,6 @@ function App() {
     const rect = viewportRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left + viewportRef.current.scrollLeft;
     const y = e.clientY - rect.top + viewportRef.current.scrollTop;
-
     if (e.button === 0) {
       setDragChain({ nodeIds: [id], mouseX: x, mouseY: y });
     } else if (e.button === 2) {
@@ -221,14 +253,13 @@ function App() {
 
   useEffect(() => {
     const onMove = (e) => {
+      if (!viewportRef.current) return;
       const rect = viewportRef.current.getBoundingClientRect();
       const mx = e.clientX - rect.left + viewportRef.current.scrollLeft;
       const my = e.clientY - rect.top + viewportRef.current.scrollTop;
-
       if (dragChain || (sliceLine && sliceLine.isSelectMode)) {
         let hit = null;
         nodes.forEach(n => { if (mx >= n.x + 10 && mx <= n.x + 180 && my >= n.y + 10 && my <= n.y + 45) hit = n.id; });
-
         if (dragChain) {
           if (hit) {
             if (dragChain.nodeIds.length > 1 && dragChain.nodeIds[dragChain.nodeIds.length - 2] === hit) setDragChain(p => ({ ...p, nodeIds: p.nodeIds.slice(0, -1), mouseX: mx, mouseY: my }));
@@ -260,26 +291,26 @@ function App() {
         const chain = dragChain.nodeIds;
         const mx = dragChain.mouseX;
         const my = dragChain.mouseY;
-
         let hitNodeId = null;
-        nodes.forEach(n => {
-          if (mx >= n.x && mx <= n.x + 190 && my >= n.y && my <= n.y + 55) hitNodeId = n.id;
-        });
-
+        nodes.forEach(n => { if (mx >= n.x && mx <= n.x + 190 && my >= n.y && my <= n.y + 55) hitNodeId = n.id; });
         const sourceId = chain[0];
         if (!hitNodeId && editingNodeId === sourceId && chain.length === 1) {
           const sourceNode = linkageData[sourceId];
           const newId = `node_${Date.now()}`;
-          const newNode = { name: "New Node", color: sourceNode.color, rank: sourceNode.rank, links_to: [] };
-
-          const newData = {};
-          Object.keys(linkageData).forEach(key => {
-            newData[key] = linkageData[key];
-            if (key === sourceId) {
-              newData[newId] = newNode;
-              newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
-            }
-          });
+          const newNode = { 
+            name: getNextNodeName(sourceNode.name, linkageData), 
+            color: sourceNode.color, 
+            rank: sourceNode.rank, 
+            image: sourceNode.image || "",
+            links_to: [] 
+          };
+          const newData = { ...linkageData };
+          newData[newId] = newNode;
+          if (linkMode === 1) {
+            newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
+          } else {
+            newData[newId].links_to = [sourceId];
+          }
           updateLinkageDataWithHistory(newData);
           setEditingNodeId(newId); 
           setMultiSelectedIds([newId]);
@@ -289,7 +320,6 @@ function App() {
           const finalData = JSON.parse(JSON.stringify(linkageData)); 
           const draftData = JSON.parse(JSON.stringify(linkageData)); 
           const pendingLinks = [];
-
           for (let i = 0; i < finalChain.length - 1; i++) {
             const a = finalChain[i], b = finalChain[i + 1];
             const src = isParallel ? (linkMode === 1 ? finalChain[0] : b) : (linkMode === 1 ? a : b);
@@ -297,14 +327,12 @@ function App() {
             pendingLinks.push({ src, tgt });
             if (draftData[src]) draftData[src].links_to = [...(draftData[src].links_to || []), tgt];
           }
-
           const hasPath = (startId, targetId, currentData, visited = new Set()) => {
             if (startId === targetId) return true;
             if (visited.has(startId)) return false;
             visited.add(startId);
             return (currentData[startId]?.links_to || []).some(c => hasPath(c, targetId, currentData, visited));
           };
-
           let changed = false;
           pendingLinks.forEach(({ src, tgt }) => {
             if (hasPath(tgt, src, draftData) || hasPath(src, tgt, finalData)) return;
@@ -324,7 +352,6 @@ function App() {
           if (changed) updateLinkageDataWithHistory(finalData);
         }
       }
-
       if (sliceLine && !sliceLine.isSelectMode) {
         const { startX, startY, endX, endY } = sliceLine;
         const newData = JSON.parse(JSON.stringify(linkageData));
@@ -352,21 +379,28 @@ function App() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragChain, sliceLine, nodes, linkageData, linkMode, isParallel, multiSelectedIds, writingMode, editingNodeId]);
+  }, [dragChain, sliceLine, nodes, linkageData, linkMode, isParallel, multiSelectedIds, writingMode, editingNodeId, isInversionView]);
 
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'monospace', userSelect: 'none' }}>
       <Header onConfigOpen={() => window.showDirectoryPicker().then(h => { set('master_root_handle', h); setupProject(h); })} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      
+      {/* SỬA LẠI CSS Ở ĐÂY: Thằng cha này phải cho phép thằng con (GraphViewport) cuộn */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         <Sidebar 
           fileHandles={fileHandles} selectedFileName={selectedFileName} onFileSelect={handleFileSelect} 
           linkMode={linkMode} setLinkMode={setLinkMode} isParallel={isParallel} setIsParallel={setIsParallel} 
-          writingMode={writingMode} setWritingMode={setWritingMode} onSave={handleSave}
+          writingMode={writingMode} setWritingMode={setWritingMode} 
+          isInversionView={isInversionView} onToggleInversionView={toggleInversionView} 
+          onSave={handleSave}
           editingNode={editingNodeId ? { id: editingNodeId, ...linkageData[editingNodeId] } : null} onUpdateNode={handleUpdateNode} onCloseEditor={() => {setEditingNodeId(null); setMultiSelectedIds([]);}} onDeleteNode={handleDeleteNode}
         />
+        
+        {/* GraphViewport sẽ tự lo phần scroll bên trong nó */}
         <GraphViewport 
           viewportRef={viewportRef} nodes={nodes} edges={edges} dragChain={dragChain} sliceLine={sliceLine} editingNodeId={editingNodeId} 
           multiSelectedIds={multiSelectedIds} onNodeMouseDown={onNodeMouseDown} onViewportDoubleClick={handleCreateNode}
+          onOpenImage={setPreviewImage} 
           onViewportMouseDown={(e) => {
             const rect = viewportRef.current.getBoundingClientRect();
             const x = e.clientX - rect.left + viewportRef.current.scrollLeft;
@@ -383,16 +417,28 @@ function App() {
         />
       </div>
 
-      {/* --- TOAST THÔNG BÁO SAVE THÀNH CÔNG --- */}
       {showToast && (
-        <div style={{
-          position: 'fixed', bottom: '20px', right: '20px',
-          backgroundColor: '#00ff00', color: '#000',
-          padding: '10px 20px', borderRadius: '4px',
-          fontWeight: 'bold', zIndex: 9999,
-          boxShadow: '0 0 15px rgba(0, 255, 0, 0.5)',
-        }}>
+        <div style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: '#00ff00', color: '#000', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', zIndex: 9999, boxShadow: '0 0 15px rgba(0, 255, 0, 0.5)' }}>
           💾 SAVED SUCCESSFULLY!
+        </div>
+      )}
+
+      {previewImage && (
+        <div 
+          onClick={() => setPreviewImage(null)} 
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out'
+          }}
+        >
+          <img 
+            src={previewImage} 
+            alt="Preview"
+            style={{ maxWidth: '90%', maxHeight: '90%', boxShadow: '0 0 30px rgba(0,0,0,0.5)', borderRadius: '4px', objectFit: 'contain' }} 
+          />
+          <div style={{ position: 'absolute', top: '20px', right: '30px', color: '#fff', fontSize: '24px', cursor: 'pointer' }}>✕</div>
         </div>
       )}
     </div>
