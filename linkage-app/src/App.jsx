@@ -189,6 +189,33 @@ function App() {
     }
   };
 
+
+  const handleAddVault = async () => {
+    if (!rootHandle) return;
+    try {
+      // 1. Mở trình chọn thư mục để người dùng chọn thư mục Vault mới
+      const newVaultHandle = await window.showDirectoryPicker();
+      
+      // 2. Kiểm tra xem Vault này đã tồn tại trong danh sách chưa
+      if (vaults.some(v => v.name === newVaultHandle.name)) {
+        alert("Vault này đã tồn tại!");
+        return;
+      }
+
+      // 3. Cập nhật state vaults để Header hiển thị thêm option mới
+      setVaults(prev => [...prev, newVaultHandle]);
+      
+      // 4. (Tùy chọn) Tự động chuyển sang Vault vừa thêm
+      loadFiles(newVaultHandle);
+      
+      // Lưu ý: Để lưu vĩnh viễn vào Vault.json, bồ cần thêm logic 
+      // ghi file vào data/Vault.json ở đây nếu muốn.
+    } catch (err) {
+      console.error("Hủy chọn thư mục hoặc có lỗi xảy ra:", err);
+    }
+  };
+
+
   const handleSave = async () => {
     if (!activeFileHandle || !linkageData) return;
     try {
@@ -383,7 +410,7 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'monospace', userSelect: 'none' }}>
-      <Header onConfigOpen={() => window.showDirectoryPicker().then(h => { set('master_root_handle', h); setupProject(h); })} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} />
+      <Header onConfigOpen={() => window.showDirectoryPicker().then(h => { set('master_root_handle', h); setupProject(h); })} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} onFolderOpen={handleAddVault}/>
       
       {/* SỬA LẠI CSS Ở ĐÂY: Thằng cha này phải cho phép thằng con (GraphViewport) cuộn */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
