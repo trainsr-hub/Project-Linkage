@@ -193,26 +193,30 @@ function App() {
   const handleAddVault = async () => {
     if (!rootHandle) return;
     try {
-      // 1. Mở trình chọn thư mục để người dùng chọn thư mục Vault mới
       const newVaultHandle = await window.showDirectoryPicker();
-      
-      // 2. Kiểm tra xem Vault này đã tồn tại trong danh sách chưa
-      if (vaults.some(v => v.name === newVaultHandle.name)) {
-        alert("Vault này đã tồn tại!");
-        return;
-      }
+      const relativePath = await rootHandle.resolve(newVaultHandle); // Tự động lấy mảng path chuẩn
 
-      // 3. Cập nhật state vaults để Header hiển thị thêm option mới
+      if (!relativePath) return alert("Vault phải nằm trong Master Folder!");
+
+      // Đọc & Cập nhật Vault.json
+      const dataDir = await rootHandle.getDirectoryHandle('data');
+      const fileHandle = await dataDir.getFileHandle('Vault.json');
+      const config = JSON.parse(await (await fileHandle.getFile()).text() || '{"vaults":[]}');
+
+      const newEntry = { name: newVaultHandle.name, path: relativePath };
+      if (config.vaults.some(v => v.name === newEntry.name)) return alert("Trùng tên!");
+
+      config.vaults.push(newEntry);
+
+      // Ghi file
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(config, null, 2));
+      await writable.close();
+
+      // Cập nhật UI
       setVaults(prev => [...prev, newVaultHandle]);
-      
-      // 4. (Tùy chọn) Tự động chuyển sang Vault vừa thêm
       loadFiles(newVaultHandle);
-      
-      // Lưu ý: Để lưu vĩnh viễn vào Vault.json, bồ cần thêm logic 
-      // ghi file vào data/Vault.json ở đây nếu muốn.
-    } catch (err) {
-      console.error("Hủy chọn thư mục hoặc có lỗi xảy ra:", err);
-    }
+    } catch (e) { console.error(e); }
   };
 
 
