@@ -46,6 +46,5 @@ export const composeLinkageFile = (part1, dataObject, part3) => {
     .filter(line => line.trim() !== "")
     .map(line => '  ' + line)
     .join('\n') + '\n';
-
   return part1 + formattedPart2 + part3;
 };

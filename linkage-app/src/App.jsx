@@ -92,18 +92,17 @@ function App() {
       if (isInversionView) {
         const invertedData = {};
         Object.keys(linkageData).forEach(id => {
-          invertedData[id] = { ...linkageData[id], links_to: [] };
+          invertedData[id] = { ...linkageData[id], links_to: {} };
         });
         Object.keys(linkageData).forEach(srcId => {
-          (linkageData[srcId].links_to || []).forEach(tgtId => {
+          Object.keys(linkageData[srcId].links_to || {}).forEach(tgtId => {
             if (invertedData[tgtId]) {
-              invertedData[tgtId].links_to.push(srcId);
+              invertedData[tgtId].links_to[srcId] = true;
             }
           });
         });
         processedData = invertedData;
       }
-
       // CHỖ THAY ĐỔI: Truyền thêm orientation vào đây
       return calculateLayout(processedData, orientation); 
       
@@ -150,14 +149,14 @@ function App() {
         color: sourceNode.color, 
         rank: sourceNode.rank, 
         image: sourceNode.image || "",
-        links_to: [] 
+        links_to: {} 
       };
       const newData = { ...linkageData };
       newData[newId] = newNode;
       if (linkMode === 1) {
-        newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
+        newData[sourceId].links_to = { ...(newData[sourceId].links_to || {}), [newId]: true };
       } else {
-        newData[newId].links_to = [sourceId];
+        newData[newId].links_to = { [sourceId]: true };
       }
       updateLinkageDataWithHistory(newData);
       setEditingNodeId(newId);
@@ -194,7 +193,7 @@ const handleSave = async () => {
 
   const handleCreateNode = (x, y) => {
     const newId = `node_${Date.now()}`;
-    const newData = { ...linkageData, [newId]: { name: "New Node", color: "B", rank: 2, links_to: [] } };
+    const newData = { ...linkageData, [newId]: { name: "New Node", color: "B", rank: 2, links_to: {} } }; // Sửa [] thành {}
     updateLinkageDataWithHistory(newData);
     setEditingNodeId(newId);
     setMultiSelectedIds([newId]);
@@ -291,14 +290,14 @@ const handleSave = async () => {
             color: sourceNode.color, 
             rank: sourceNode.rank, 
             image: sourceNode.image || "",
-            links_to: [] 
+            links_to: {} 
           };
           const newData = { ...linkageData };
           newData[newId] = newNode;
           if (linkMode === 1) {
-            newData[sourceId].links_to = [...(newData[sourceId].links_to || []), newId];
+            newData[sourceId].links_to = { ...(newData[sourceId].links_to || {}), [newId]: true };
           } else {
-            newData[newId].links_to = [sourceId];
+            newData[newId].links_to = { [sourceId]: true };
           }
           updateLinkageDataWithHistory(newData);
           setEditingNodeId(newId); 
@@ -314,26 +313,31 @@ const handleSave = async () => {
             const src = isParallel ? (linkMode === 1 ? finalChain[0] : b) : (linkMode === 1 ? a : b);
             const tgt = isParallel ? (linkMode === 1 ? b : finalChain[0]) : (linkMode === 1 ? b : a);
             pendingLinks.push({ src, tgt });
-            if (draftData[src]) draftData[src].links_to = [...(draftData[src].links_to || []), tgt];
+            if (draftData[src]) {
+              draftData[src].links_to = draftData[src].links_to || {};
+              draftData[src].links_to[tgt] = true;
+            }
           }
           const hasPath = (startId, targetId, currentData, visited = new Set()) => {
             if (startId === targetId) return true;
             if (visited.has(startId)) return false;
             visited.add(startId);
-            return (currentData[startId]?.links_to || []).some(c => hasPath(c, targetId, currentData, visited));
+            return Object.keys(currentData[startId]?.links_to || {}).some(c => hasPath(c, targetId, currentData, visited));
           };
           let changed = false;
           pendingLinks.forEach(({ src, tgt }) => {
             if (hasPath(tgt, src, draftData) || hasPath(src, tgt, finalData)) return;
             Object.keys(finalData).forEach(pId => {
-              if (finalData[pId].links_to?.includes(tgt) && hasPath(pId, src, finalData)) {
-                finalData[pId].links_to = finalData[pId].links_to.filter(id => id !== tgt);
+              if (finalData[pId].links_to && finalData[pId].links_to[tgt] && hasPath(pId, src, finalData)) {
+                delete finalData[pId].links_to[tgt]; // Sửa filter thành delete key
                 changed = true;
               }
             });
-            if (finalData[src]) {
-              if (!finalData[src].links_to.includes(tgt)) {
-                finalData[src].links_to.push(tgt);
+              if (finalData[src]) {
+              finalData[src].links_to = finalData[src].links_to || {};
+
+              if (!finalData[src].links_to[tgt]) {
+                finalData[src].links_to[tgt] = true;
                 changed = true;
               }
             }
@@ -348,14 +352,16 @@ const handleSave = async () => {
         Object.keys(newData).forEach(sourceId => {
           const sourceNode = nodes.find(n => n.id === sourceId);
           if (!sourceNode || !newData[sourceId].links_to) return;
-          const remainingLinks = newData[sourceId].links_to.filter(targetId => {
+          const entries = Object.entries(newData[sourceId].links_to);
+          const remainingEntries = entries.filter(([targetId]) => {
             const targetNode = nodes.find(n => n.id === targetId);
             if (!targetNode) return true;
             const intersects = checkIntersection({ x: startX, y: startY }, { x: endX, y: endY }, { x: sourceNode.x + 95, y: sourceNode.y + 27.5 }, { x: targetNode.x + 95, y: targetNode.y + 27.5 });
             if (intersects) changed = true;
             return !intersects;
           });
-          newData[sourceId].links_to = remainingLinks;
+          newData[sourceId].links_to = Object.fromEntries(remainingEntries);
+//          newData[newId].links_to = { ...(newData[newId].links_to || {}), [sourceId]: true };
         });
         if (changed) updateLinkageDataWithHistory(newData);
       }

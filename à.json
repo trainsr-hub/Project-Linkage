@@ -1,0 +1,217 @@
+{
+    "Arc_Tank": {
+        "id": "Arc_Tank",
+        "name": "Arc System Tank",
+        "links_to": [
+            "Arc_Rabbit"
+        ],
+        "x": 50,
+        "y": 80
+    },
+    "Arc_Rabbit": {
+        "id": "Arc_Rabbit",
+        "name": "Arc System Rabbit",
+        "links_to": [
+            "All_Mech"
+        ],
+        "x": 330,
+        "y": 80
+    },
+    "All_Mech": {
+        "id": "All_Mech",
+        "name": "All My Mechanical Projects",
+        "links_to": [],
+        "x": 610,
+        "y": 80
+    },
+    "Career_Path": {
+        "id": "Career_Path",
+        "name": "Lộ Trình Sự Nghiệp",
+        "links_to": [
+            "Money"
+        ],
+        "x": 50,
+        "y": 410
+    },
+    "Money": {
+        "id": "Money",
+        "name": "Money",
+        "links_to": [
+            "Buy_Laptop",
+            "Buy_Fridge",
+            "node_1776245824124"
+        ],
+        "x": 330,
+        "y": 410
+    },
+    "node_1776245824124": {
+        "id": "node_1776245824124",
+        "name": "Phần cứng PC",
+        "links_to": [
+            "node_1776304040865",
+            "Youtube"
+        ],
+        "x": 610,
+        "y": 630
+    },
+    "node_1776304040865": {
+        "id": "node_1776304040865",
+        "name": "Vấn đề Lưu Trữ và Playlist True Random",
+        "links_to": [
+            "node_1776304061723"
+        ],
+        "x": 890,
+        "y": 520
+    },
+    "Buy_Laptop": {
+        "id": "Buy_Laptop",
+        "name": "Mua Laptop",
+        "links_to": [
+            "Cafe"
+        ],
+        "x": 610,
+        "y": 190
+    },
+    "Cafe": {
+        "id": "Cafe",
+        "name": "Workplace Cafe",
+        "links_to": [],
+        "x": 890,
+        "y": 190
+    },
+    "Buy_Fridge": {
+        "id": "Buy_Fridge",
+        "name": "Mua Tủ lạnh",
+        "links_to": [
+            "Meal_Prep",
+            "node_1776238745200"
+        ],
+        "x": 610,
+        "y": 410
+    },
+    "node_1776238745200": {
+        "id": "node_1776238745200",
+        "name": "Project Meal",
+        "links_to": [],
+        "x": 890,
+        "y": 410
+    },
+    "Meal_Prep": {
+        "id": "Meal_Prep",
+        "name": "Meal Prep",
+        "links_to": [],
+        "x": 890,
+        "y": 300
+    },
+    "Note_Writing": {
+        "id": "Note_Writing",
+        "name": "Dọn Note Writing",
+        "links_to": [
+            "Read_Books"
+        ],
+        "x": 50,
+        "y": 740
+    },
+    "Dọn_Obsidian": {
+        "id": "Dọn_Obsidian",
+        "name": "Dọn Obsidian",
+        "links_to": [
+            "Read_Books"
+        ],
+        "x": 50,
+        "y": 850
+    },
+    "Dọn_Media": {
+        "id": "Dọn_Media",
+        "name": "Dọn Media",
+        "links_to": [
+            "Read_Books",
+            "Youtube",
+            "Media_Capture"
+        ],
+        "x": 50,
+        "y": 960
+    },
+    "Drive": {
+        "id": "Drive",
+        "name": "Vấn đề Archive & Drive",
+        "links_to": [
+            "Dọn_Media",
+            "Dọn_Obsidian",
+            "Note_Writing"
+        ],
+        "x": 50,
+        "y": 1070
+    },
+    "Read_Books": {
+        "id": "Read_Books",
+        "name": "Đọc sách",
+        "links_to": [
+            "Research"
+        ],
+        "x": 330,
+        "y": 740
+    },
+    "Research": {
+        "id": "Research",
+        "name": "Làm Research",
+        "links_to": [],
+        "x": 610,
+        "y": 740
+    },
+    "Media_Capture": {
+        "id": "Media_Capture",
+        "name": "Chụp nhiều ảnh và video",
+        "links_to": [
+            "All_Status"
+        ],
+        "x": 330,
+        "y": 960
+    },
+    "All_Status": {
+        "id": "All_Status",
+        "name": "All My Statuses",
+        "links_to": [],
+        "x": 610,
+        "y": 960
+    },
+    "Youtube": {
+        "id": "Youtube",
+        "name": "Playlist Youtube",
+        "links_to": [],
+        "x": 890,
+        "y": 630
+    },
+    "node_1776242991993": {
+        "id": "node_1776242991993",
+        "name": "II ~ Green",
+        "links_to": [
+            "Career_Path"
+        ],
+        "x": 50,
+        "y": 520
+    },
+    "node_1776242919050": {
+        "id": "node_1776242919050",
+        "name": "III ~ Blue",
+        "links_to": [
+            "Arc_Tank"
+        ],
+        "x": 50,
+        "y": 190
+    },
+    "node_1776242838960": {
+        "id": "node_1776242838960",
+        "name": "IV ~ Yellow",
+        "links_to": [
+            "node_1776243453655",
+            "node_1776243496656",
+            "node_1776243546058",
+            "node_1776243603950",
+            "node_1776243645217",
+            "Drive"
+        ],
+        "x": 50,
+        "y": 1180
+    }
+}

@@ -3,12 +3,23 @@ export const calculateLayout = (db, orientation = 'horizontal') => {
   const allIds = Object.keys(db);
   if (allIds.length === 0) return { nodes: [], edges: [] };
 
-  const targetedIds = new Set(Object.values(db).flatMap(info => info.links_to || []));
+  const targetedIds = new Set(Object.values(db).flatMap(info => Object.keys(info.links_to || {})));
   const filteredBase = allIds
     .map(id => ({ id, ...db[id] }))
     .filter(node => !(node.rank === 0 && targetedIds.has(node.id)));
   const validIds = new Set(filteredBase.map(n => n.id));
-  const roots = filteredBase.filter(n => !filteredBase.some(other => other.links_to?.includes(n.id)));
+const indegree = {};
+allIds.forEach(id => indegree[id] = 0);
+
+allIds.forEach(id => {
+  Object.keys(db[id]?.links_to || {}).forEach(child => {
+    if (indegree[child] !== undefined) {
+      indegree[child]++;
+    }
+  });
+});
+
+const roots = filteredBase.filter(n => indegree[n.id] === 0);
 
   const nodeCoords = {};
   const occupiedSlots = {};
@@ -23,7 +34,7 @@ export const calculateLayout = (db, orientation = 'horizontal') => {
       if (nodeCoords[nodeId] || visited.has(nodeId)) return 0;
       visited.add(nodeId);
 
-      const children = db[nodeId]?.links_to?.filter(cid => validIds.has(cid)) || [];
+      const children = Object.keys(db[nodeId]?.links_to || {}).filter(cid => validIds.has(cid));
       let totalSlotsUsed = 0;
       let childrenPosSum = 0;
 
@@ -75,11 +86,15 @@ export const calculateLayout = (db, orientation = 'horizontal') => {
   }));
 
   const nodeMap = Object.fromEntries(finalNodes.map(n => [n.id, n]));
-  const edges = finalNodes.flatMap(source => 
-    (source.links_to || []).filter(tid => nodeMap[tid]).map(tid => ({
-      fromX: source.x + 95, fromY: source.y + 27.5,
-      toX: nodeMap[tid].x + 95, toY: nodeMap[tid].y + 27.5
-    }))
+  const edges = finalNodes.flatMap(source =>
+    Object.keys(source.links_to || {})
+      .filter(tid => nodeMap[tid])
+      .map(tid => ({
+        fromX: source.x + 95,
+        fromY: source.y + 27.5,
+        toX: nodeMap[tid].x + 95,
+        toY: nodeMap[tid].y + 27.5
+      }))
   );
 
   return { nodes: finalNodes, edges };
