@@ -31,6 +31,7 @@ const GraphViewport = ({
     const maxX = Math.max(...nodes.map(n => n.x)) + 1000; // Cộng thêm 1000px đệm để vẩy chuột
     const maxY = Math.max(...nodes.map(n => n.y)) + 1000;
 
+
     return {
       canvasWidth: Math.max(maxX, 10000), // Không bao giờ nhỏ hơn 4000px
       canvasHeight: Math.max(maxY, 4000)

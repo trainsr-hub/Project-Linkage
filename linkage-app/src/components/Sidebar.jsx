@@ -15,7 +15,9 @@ const Sidebar = ({
   onSave,
   editingNode, 
   onUpdateNode, 
-  onCloseEditor 
+  onCloseEditor, 
+  orientation,
+  onToggleOrientation 
 }) => {
   const nameInputRef = useRef(null);
 
@@ -140,6 +142,7 @@ const Sidebar = ({
       )}
 
       {/* 3. CONTROL PANEL */}
+
       <div style={{ padding: '10px 0', borderTop: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         
         <div style={{ fontSize: '10px', color: '#555' }}>CHẾ ĐỘ NHẬP</div>
@@ -182,6 +185,19 @@ const Sidebar = ({
           <button onClick={() => setIsParallel(false)} style={{ flex: 1, fontSize: '10px', padding: '6px', backgroundColor: !isParallel ? '#2ecc71' : '#222', color: !isParallel ? '#000' : '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>SERIAL</button>
           <button onClick={() => setIsParallel(true)} style={{ flex: 1, fontSize: '10px', padding: '6px', backgroundColor: isParallel ? '#e67e22' : '#222', color: isParallel ? '#000' : '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>PARALLEL</button>
         </div>
+        {/* --- NÚT CHUYỂN HƯỚNG VIEW (THÊM VÀO ĐÂY) --- */}
+        <div style={{ fontSize: '10px', color: '#555', marginTop: '10px' }}>BỐ CỤC LUỒNG</div>
+        <button 
+          onClick={() => onToggleOrientation()} 
+          style={{ 
+            width: '100%', fontSize: '10px', padding: '8px', 
+            backgroundColor: orientation === 'vertical' ? '#3498db' : '#222', 
+            color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer',
+            fontWeight: 'bold', border: '1px solid #333'
+          }}
+        >
+          {orientation === 'vertical' ? 'TOP-TO-BOTTOM' : 'LEFT-TO-RIGHT'}
+        </button>
 
         <button onClick={onSave} style={{ width: '100%', padding: '12px', backgroundColor: '#111', color: '#00ff00', border: '1px solid #00ff00', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '5px' }}>SAVE CHANGES</button>
       </div>

@@ -36,6 +36,12 @@ function App() {
   const [isParallel, setIsParallel] = useState(false); 
   const [writingMode, setWritingMode] = useState(true); 
   const [isInversionView, setIsInversionView] = useState(false);
+  const [orientation, setOrientation] = useState('horizontal');
+
+  // Hàm này để đổi qua lại giữa 'horizontal' và 'vertical'
+  const handleToggleOrientation = () => {
+    setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal');
+  };
 
   const viewportRef = useRef(null);
   const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f', 'W':'#ffffff' };
@@ -71,21 +77,32 @@ function App() {
 
   // --- TÍNH TOÁN LAYOUT ---
   const { nodes, edges } = useMemo(() => {
-    if (!linkageData) return { nodes: [], edges: [] };
-    let processedData = linkageData;
-    if (isInversionView) {
-      const invertedData = {};
-      Object.keys(linkageData).forEach(id => { invertedData[id] = { ...linkageData[id], links_to: [] }; });
-      Object.keys(linkageData).forEach(srcId => {
-        (linkageData[srcId].links_to || []).forEach(tgtId => {
-          if (invertedData[tgtId]) invertedData[tgtId].links_to.push(srcId);
-        });
-      });
-      processedData = invertedData;
-    }
-    return calculateLayout(processedData);
-  }, [linkageData, isInversionView]);
+      if (!linkageData) return { nodes: [], edges: [] };
 
+      let processedData = linkageData;
+
+      if (isInversionView) {
+        const invertedData = {};
+        Object.keys(linkageData).forEach(id => {
+          invertedData[id] = { ...linkageData[id], links_to: [] };
+        });
+        Object.keys(linkageData).forEach(srcId => {
+          (linkageData[srcId].links_to || []).forEach(tgtId => {
+            if (invertedData[tgtId]) {
+              invertedData[tgtId].links_to.push(srcId);
+            }
+          });
+        });
+        processedData = invertedData;
+      }
+
+      // CHỖ THAY ĐỔI: Truyền thêm orientation vào đây
+      return calculateLayout(processedData, orientation); 
+      
+    }, [linkageData, isInversionView, orientation]); // CHỖ THAY ĐỔI: Thêm orientation vào dependency
+
+
+  
   // --- HANDLERS (Giữ nguyên logic chính) ---
   const toggleInversionView = () => {
     const next = !isInversionView;
@@ -416,36 +433,76 @@ function App() {
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'monospace', userSelect: 'none' }}>
       <Header onConfigOpen={() => window.showDirectoryPicker().then(h => { set('master_root_handle', h); setupProject(h); })} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} onFolderOpen={handleAddVault}/>
       
-      {/* SỬA LẠI CSS Ở ĐÂY: Thằng cha này phải cho phép thằng con (GraphViewport) cuộn */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+{/* CHỖ NÀY LÀ CÁI LỒNG TỔNG: 
+          Phải có width: 100% và overflow: hidden để Sidebar không bị trôi 
+      */}
+      <div style={{ 
+        display: 'flex', 
+        flex: 1, 
+        overflow: 'hidden', 
+        position: 'relative', 
+        width: '100%' 
+      }}>
+        
         <Sidebar 
-          fileHandles={fileHandles} selectedFileName={selectedFileName} onFileSelect={handleFileSelect} 
-          linkMode={linkMode} setLinkMode={setLinkMode} isParallel={isParallel} setIsParallel={setIsParallel} 
-          writingMode={writingMode} setWritingMode={setWritingMode} 
-          isInversionView={isInversionView} onToggleInversionView={toggleInversionView} 
+          fileHandles={fileHandles} 
+          selectedFileName={selectedFileName} 
+          onFileSelect={handleFileSelect} 
+          linkMode={linkMode} 
+          setLinkMode={setLinkMode} 
+          isParallel={isParallel} 
+          setIsParallel={setIsParallel} 
+          writingMode={writingMode} 
+          setWritingMode={setWritingMode} 
+          isInversionView={isInversionView} 
+          onToggleInversionView={toggleInversionView} 
+          orientation={orientation} 
+          onToggleOrientation={handleToggleOrientation}
           onSave={handleSave}
-          editingNode={editingNodeId ? { id: editingNodeId, ...linkageData[editingNodeId] } : null} onUpdateNode={handleUpdateNode} onCloseEditor={() => {setEditingNodeId(null); setMultiSelectedIds([]);}} onDeleteNode={handleDeleteNode}
+          editingNode={editingNodeId ? { id: editingNodeId, ...linkageData[editingNodeId] } : null} 
+          onUpdateNode={handleUpdateNode} 
+          onCloseEditor={() => {setEditingNodeId(null); setMultiSelectedIds([]);}} 
+          onDeleteNode={handleDeleteNode}
         />
         
-        {/* GraphViewport sẽ tự lo phần scroll bên trong nó */}
-        <GraphViewport 
-          viewportRef={viewportRef} nodes={nodes} edges={edges} dragChain={dragChain} sliceLine={sliceLine} editingNodeId={editingNodeId} 
-          multiSelectedIds={multiSelectedIds} onNodeMouseDown={onNodeMouseDown} onViewportDoubleClick={handleCreateNode}
-          onOpenImage={setPreviewImage} 
-          onViewportMouseDown={(e) => {
-            const rect = viewportRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left + viewportRef.current.scrollLeft;
-            const y = e.clientY - rect.top + viewportRef.current.scrollTop;
-            if (e.button === 2) { 
-              setSliceLine({ startX: x, startY: y, endX: x, endY: y, isSelectMode: false });
-              setMultiSelectedIds([]);
-            } else if (e.button === 0) { 
-              const hitNode = nodes.find(n => x >= n.x && x <= n.x + 190 && y >= n.y && y <= n.y + 55);
-              if (!hitNode) { setEditingNodeId(null); setMultiSelectedIds([]); }
-            }
-          }}
-          colorMap={colorMap} rankStrokeMap={rankStrokeMap} 
-        />
+        {/* MŨI TÊN VÀO ĐÂY -> ĐÂY LÀ "CHÌA KHÓA" ĐỂ THOÁT TÙ 
+            Thẻ div bọc GraphViewport BẮT BUỘC phải có flex: 1 và minWidth: 0
+            Nếu thiếu minWidth: 0, Flexbox sẽ ép chết chiều rộng của GraphViewport bằng màn hình.
+        */}
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          minWidth: 0, 
+          position: 'relative',
+          height: '100%'
+        }}>
+          <GraphViewport 
+            viewportRef={viewportRef} 
+            nodes={nodes} 
+            edges={edges} 
+            dragChain={dragChain} 
+            sliceLine={sliceLine} 
+            editingNodeId={editingNodeId} 
+            multiSelectedIds={multiSelectedIds} 
+            onNodeMouseDown={onNodeMouseDown} 
+            onViewportDoubleClick={handleCreateNode}
+            onOpenImage={setPreviewImage} 
+            onViewportMouseDown={(e) => {
+              const rect = viewportRef.current.getBoundingClientRect();
+              const x = e.clientX - rect.left + viewportRef.current.scrollLeft;
+              const y = e.clientY - rect.top + viewportRef.current.scrollTop;
+              if (e.button === 2) { 
+                setSliceLine({ startX: x, startY: y, endX: x, endY: y, isSelectMode: false });
+                setMultiSelectedIds([]);
+              } else if (e.button === 0) { 
+                const hitNode = nodes.find(n => x >= n.x && x <= n.x + 190 && y >= n.y && y <= n.y + 55);
+                if (!hitNode) { setEditingNodeId(null); setMultiSelectedIds([]); }
+              }
+            }}
+            colorMap={colorMap} 
+            rankStrokeMap={rankStrokeMap} 
+          />
+        </div>
       </div>
 
       {showToast && (
