@@ -1,3 +1,5 @@
+import { useFileSystem } from './hooks/useFileSystem';
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { get, set } from 'idb-keyval';
 import Sidebar from './components/Sidebar';
@@ -16,14 +18,20 @@ function checkIntersection(p1, p2, p3, p4) {
 }
 
 function App() {
+  const {
+    rootHandle, vaults, fileHandles, activeFileHandle, selectedFileName,
+    setActiveFileHandle, setSelectedFileName,
+    openMasterFolder, handleAddVault, loadFiles, saveFile
+  } = useFileSystem();
+  // Tự động load file đầu tiên khi danh sách file được nạp
+  useEffect(() => {
+    if (fileHandles.length > 0 && !activeFileHandle) {
+      handleFileSelect(fileHandles[0]);
+    }
+  }, [fileHandles, activeFileHandle]); // Thêm dependency để chạy khi có file
   // --- STATES (Giữ nguyên các state cũ) ---
-  const [rootHandle, setRootHandle] = useState(null);
-  const [vaults, setVaults] = useState([]); 
-  const [fileHandles, setFileHandles] = useState([]);
   const [linkageData, setLinkageData] = useState(null); 
   const [historyStack, setHistoryStack] = useState([]);
-  const [selectedFileName, setSelectedFileName] = useState("");
-  const [activeFileHandle, setActiveFileHandle] = useState(null);
   const [showToast, setShowToast] = useState(false); 
   const [previewImage, setPreviewImage] = useState(null);
 
@@ -129,13 +137,6 @@ function App() {
   };
 
   // ... (Các hàm useEffect, setupProject, loadFiles, handleFileSelect, handleSave giữ nguyên)
-  useEffect(() => {
-    const init = async () => {
-      const savedRoot = await get('master_root_handle');
-      if (savedRoot && (await savedRoot.queryPermission({ mode: 'readwrite' })) === 'granted') setupProject(savedRoot);
-    };
-    init();
-  }, []);
 
   useEffect(() => {
     const handleReborn = (e) => {
@@ -166,90 +167,30 @@ function App() {
     return () => window.removeEventListener('reborn-node', handleReborn);
   }, [linkageData, writingMode, linkMode]);
 
-  const setupProject = async (handle) => {
-    setRootHandle(handle);
-    try {
-      const dataFolder = await handle.getDirectoryHandle('data', { create: true });
-      const vaultFileHandle = await dataFolder.getFileHandle('Vault.json', { create: true });
-      const text = await (await vaultFileHandle.getFile()).text();
-      let config = text ? JSON.parse(text) : { vaults: [] };
-      const loadedVaults = [];
-      for (const v of config.vaults) {
-        try {
-          let current = handle;
-          for (const name of v.path) current = await current.getDirectoryHandle(name);
-          loadedVaults.push(current);
-        } catch (e) {}
-      }
-      setVaults(loadedVaults);
-      if (loadedVaults.length > 0) loadFiles(loadedVaults[0]);
-    } catch (err) {}
-  };
-
-  const loadFiles = async (dir) => {
-    const files = [];
-    for await (const entry of dir.values()) if (entry.kind === 'file' && entry.name.endsWith('.md')) files.push(entry);
-    setFileHandles(files);
-    if (files.length > 0) handleFileSelect(files[0]);
-  };
-
   const handleFileSelect = async (handle) => {
-    const content = await (await handle.getFile()).text();
-    setSelectedFileName(handle.name);
-    setActiveFileHandle(handle);
-    const res = parseLinkageFile(content);
-    if (res.success) {
-      setLinkageData(res.parsedData);
-      setHistoryStack([]); 
-      setEditingNodeId(null);
-      setMultiSelectedIds([]);
-    }
-  };
+      const content = await (await handle.getFile()).text();
+      // Cập nhật state vào Hook
+      setSelectedFileName(handle.name);
+      setActiveFileHandle(handle);
 
+      const res = parseLinkageFile(content);
+      if (res.success) {
+        setLinkageData(res.parsedData);
+        setHistoryStack([]); 
+        setEditingNodeId(null);
+        setMultiSelectedIds([]);
+      }
+    };
 
-  const handleAddVault = async () => {
-    if (!rootHandle) return;
-    try {
-      const newVaultHandle = await window.showDirectoryPicker();
-      const relativePath = await rootHandle.resolve(newVaultHandle); // Tự động lấy mảng path chuẩn
-
-      if (!relativePath) return alert("Vault phải nằm trong Master Folder!");
-
-      // Đọc & Cập nhật Vault.json
-      const dataDir = await rootHandle.getDirectoryHandle('data');
-      const fileHandle = await dataDir.getFileHandle('Vault.json');
-      const config = JSON.parse(await (await fileHandle.getFile()).text() || '{"vaults":[]}');
-
-      const newEntry = { name: newVaultHandle.name, path: relativePath };
-      if (config.vaults.some(v => v.name === newEntry.name)) return alert("Trùng tên!");
-
-      config.vaults.push(newEntry);
-
-      // Ghi file
-      const writable = await fileHandle.createWritable();
-      await writable.write(JSON.stringify(config, null, 2));
-      await writable.close();
-
-      // Cập nhật UI
-      setVaults(prev => [...prev, newVaultHandle]);
-      loadFiles(newVaultHandle);
-    } catch (e) { console.error(e); }
-  };
-
-
-  const handleSave = async () => {
-    if (!activeFileHandle || !linkageData) return;
-    try {
-      const content = await (await activeFileHandle.getFile()).text();
-      const { part1, part3, success } = parseLinkageFile(content);
-      if (!success) return;
-      const writable = await activeFileHandle.createWritable();
-      await writable.write(composeLinkageFile(part1, linkageData, part3));
-      await writable.close();
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
-    } catch (err) { console.error("Lưu thất bại:", err); }
-  };
+const handleSave = async () => {
+  // Chỉ gọi lệnh, truyền data và 2 hàm helper xử lý chuỗi
+  const isOk = await saveFile(linkageData, parseLinkageFile, composeLinkageFile);
+  
+  if (isOk) {
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
+  }
+};
 
   const handleCreateNode = (x, y) => {
     const newId = `node_${Date.now()}`;
@@ -431,7 +372,7 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'monospace', userSelect: 'none' }}>
-      <Header onConfigOpen={() => window.showDirectoryPicker().then(h => { set('master_root_handle', h); setupProject(h); })} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} onFolderOpen={handleAddVault}/>
+      <Header onConfigOpen={openMasterFolder} configLoaded={!!rootHandle} selectedFile={selectedFileName} vaults={vaults} onSwitchVault={loadFiles} onFolderOpen={handleAddVault}/>
       
 {/* CHỖ NÀY LÀ CÁI LỒNG TỔNG: 
           Phải có width: 100% và overflow: hidden để Sidebar không bị trôi 
