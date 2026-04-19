@@ -1,3 +1,5 @@
+// GraphViewport.jsx
+
 import React, { useMemo } from 'react'; // Thêm useMemo để tối ưu
 
 // Hàm helper chuyển đổi rank sang số La Mã
@@ -8,6 +10,7 @@ const getRomanRank = (rank) => {
 
 const GraphViewport = ({ 
   viewportRef, 
+  nodeSize,
   nodes, 
   edges, 
   dragChain, 
@@ -30,6 +33,7 @@ const GraphViewport = ({
     // Tìm node nằm xa nhất bên phải và sâu nhất bên dưới
     const maxX = Math.max(...nodes.map(n => n.x)) + 1000; // Cộng thêm 1000px đệm để vẩy chuột
     const maxY = Math.max(...nodes.map(n => n.y)) + 1000;
+    
 
 
     return {
@@ -49,8 +53,8 @@ const GraphViewport = ({
         const y = e.clientY - rect.top + viewportRef.current.scrollTop;
 
         const hitNode = nodes.find(n => 
-          x >= n.x && x <= n.x + 190 && 
-          y >= n.y && y <= n.y + 55
+          x >= n.x && x <= n.x + nodeSize.w && 
+          y >= n.y && y <= n.y + nodeSize.h
         );
 
         if (!hitNode) {
@@ -83,14 +87,39 @@ const GraphViewport = ({
         {edges.map((edge, i) => (
           <line key={i} x1={edge.fromX} y1={edge.fromY} x2={edge.toX} y2={edge.toY} stroke="#ffffff22" strokeWidth="1" />
         ))}
+      {edges.map((edge, i) => {
+        const from = nodes.find(n => n.x + nodeSize.cx === edge.fromX && n.y + nodeSize.cy === edge.fromY);
+        const to = nodes.find(n => n.x + nodeSize.cx === edge.toX && n.y + nodeSize.cy === edge.toY);
+
+        const label = from?.links_to?.[to?.id];
+
+return typeof label === "string" ? (
+  <text
+    key={i}
+    x={(edge.fromX + edge.toX) / 2}
+    y={(edge.fromY + edge.toY) / 2 - 4}
+    fill="#fff"
+    fontSize={12}
+    textAnchor="start"
+    dominantBaseline="auto"
+    pointerEvents="none"
+  >
+    {label.split("~").map((line, idx) => (
+      <tspan key={idx} x={(edge.fromX + edge.toX) / 2} dy={idx === 0 ? 0 : 14}>
+        {line}
+      </tspan>
+    ))}
+  </text>
+) : null;
+      })}
 
         {dragChain && dragChain.nodeIds.map((id, idx) => {
           const currentNode = nodes.find(n => n.id === id);
           if (!currentNode) return null;
-          const startX = currentNode.x + 95, startY = currentNode.y + 27.5;
+          const startX = currentNode.x + nodeSize.cx, startY = currentNode.y + nodeSize.cy;
           if (idx === dragChain.nodeIds.length - 1) return <line key={"dc-"+id} x1={startX} y1={startY} x2={dragChain.mouseX} y2={dragChain.mouseY} stroke="#00ffff" strokeWidth="2" strokeDasharray="4" />;
           const nextNode = nodes.find(n => n.id === dragChain.nodeIds[idx + 1]);
-          return <line key={"dc-l-"+id} x1={startX} y1={startY} x2={nextNode.x + 95} y2={nextNode.y + 27.5} stroke="#00ffff" strokeWidth="2.5" />;
+          return <line key={"dc-l-"+id} x1={startX} y1={startY} x2={nextNode.x + nodeSize.cx} y2={nextNode.y + nodeSize.cy} stroke="#00ffff" strokeWidth="2.5" />;
         })}
 
         {sliceLine && (
@@ -98,12 +127,12 @@ const GraphViewport = ({
             sliceLine.nodeIds?.map((id, idx) => {
               const currentNode = nodes.find(n => n.id === id);
               if (!currentNode) return null;
-              const startX = currentNode.x + 95, startY = currentNode.y + 27.5;
+              const startX = currentNode.x + nodeSize.cx, startY = currentNode.y + nodeSize.cy;
               if (idx === sliceLine.nodeIds.length - 1) {
                 return <line key={"sl-last-"+id} x1={startX} y1={startY} x2={sliceLine.endX} y2={sliceLine.endY} stroke="#ff00ff" strokeWidth="2" strokeDasharray="4" style={{ filter: 'drop-shadow(0 0 5px #ff00ff)' }} />;
               }
               const nextNode = nodes.find(n => n.id === sliceLine.nodeIds[idx + 1]);
-              return <line key={"sl-link-"+id} x1={startX} y1={startY} x2={nextNode.x + 95} y2={nextNode.y + 27.5} stroke="#ff00ff" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 5px #ff00ff)' }} />;
+              return <line key={"sl-link-"+id} x1={startX} y1={startY} x2={nextNode.x + nodeSize.cx} y2={nextNode.y + nodeSize.cy} stroke="#ff00ff" strokeWidth="2.5" style={{ filter: 'drop-shadow(0 0 5px #ff00ff)' }} />;
             })
           ) : (
             <line 
@@ -140,7 +169,7 @@ const GraphViewport = ({
               }
             }}
             style={{ 
-              position: 'absolute', left: node.x, top: node.y, width: '190px', height: '55px', 
+              position: 'absolute', left: node.x, top: node.y, width: `${nodeSize.w}px`, height: `${nodeSize.h}px`,
               backgroundColor: colorMap[node.color] || '#333', 
               backgroundImage: bgImage,
               backgroundSize: 'cover',

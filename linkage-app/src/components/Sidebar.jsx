@@ -17,7 +17,9 @@ const Sidebar = ({
   onUpdateNode, 
   onCloseEditor, 
   orientation,
-  onToggleOrientation 
+  onToggleOrientation,
+  nodeSizeType,
+  setNodeSizeType
 }) => {
   const nameInputRef = useRef(null);
 
@@ -88,7 +90,24 @@ const Sidebar = ({
           >📄 {h.name}</div>
         ))}
       </div>
-
+      <select
+        value={nodeSizeType}
+        onChange={(e) => setNodeSizeType(e.target.value)}
+        style={{
+          width: '100%',
+          fontSize: '10px',
+          padding: '8px',
+          backgroundColor: '#111',
+          color: '#fff',
+          border: '1px solid #333',
+          borderRadius: '3px',
+          outline: 'none'
+        }}
+      >
+        <option value="1:1">1:1</option>
+        <option value="default">DEFAULT</option>
+        <option value="large">LARGE</option>
+      </select>
       {/* 2. NODE PROPERTY EDITOR */}
       {editingNode && (
         <div style={{ padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #ff00ff', borderRadius: '4px', marginBottom: '10px' }}>
@@ -137,6 +156,42 @@ const Sidebar = ({
                 onChange={(e) => onUpdateNode(editingNode.id, 'rank', parseInt(e.target.value) || 0)} 
               />
             </label>
+
+{/* NEW FIELD: links_to */}
+<label>
+  <div style={{ color: '#555', marginBottom: '2px' }}>LINKS TO</div>
+
+  {editingNode.links_to &&
+    Object.entries(editingNode.links_to).map(([key, value]) => (
+      <div key={key} style={{ marginBottom: '6px' }}>
+        
+        <div style={{ fontSize: '10px', color: '#888' }}>{key}</div>
+
+        <input
+          style={{
+            width: '100%',
+            backgroundColor: '#000',
+            color: '#fff',
+            border: '1px solid #333',
+            padding: '5px',
+            fontSize: '11px'
+          }}
+          value={value}
+          onChange={(e) => {
+            // NODE PROPERTY EDITOR: update only nested key
+            const updated = {
+              ...editingNode.links_to,
+              [key]: e.target.value
+            };
+
+            onUpdateNode(editingNode.id, 'links_to', updated);
+          }}
+        />
+      </div>
+    ))}
+</label>
+
+
           </div>
         </div>
       )}

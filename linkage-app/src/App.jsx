@@ -1,4 +1,5 @@
 import { useFileSystem } from './hooks/useFileSystem';
+import { getNodeSize } from './config/nodeSize';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { get, set } from 'idb-keyval';
@@ -29,11 +30,14 @@ function App() {
       handleFileSelect(fileHandles[0]);
     }
   }, [fileHandles, activeFileHandle]); // Thêm dependency để chạy khi có file
+
+
   // --- STATES (Giữ nguyên các state cũ) ---
   const [linkageData, setLinkageData] = useState(null); 
   const [historyStack, setHistoryStack] = useState([]);
   const [showToast, setShowToast] = useState(false); 
   const [previewImage, setPreviewImage] = useState(null);
+  const [nodeSizeType, setNodeSizeType] = useState('default');
 
   const [dragChain, setDragChain] = useState(null);
   const [sliceLine, setSliceLine] = useState(null);
@@ -50,6 +54,9 @@ function App() {
   const handleToggleOrientation = () => {
     setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal');
   };
+  const NODE_SIZE = useMemo(() => {
+    return getNodeSize(nodeSizeType);
+  }, [nodeSizeType]);
 
   const viewportRef = useRef(null);
   const colorMap = { 'P': '#7d56f5', 'G': '#2ecc71', 'B': '#3498db', 'Y': '#f1c40f', 'W':'#ffffff' };
@@ -104,7 +111,7 @@ function App() {
         processedData = invertedData;
       }
       // CHỖ THAY ĐỔI: Truyền thêm orientation vào đây
-      return calculateLayout(processedData, orientation); 
+      return calculateLayout(processedData, orientation, NODE_SIZE); 
       
     }, [linkageData, isInversionView, orientation]); // CHỖ THAY ĐỔI: Thêm orientation vào dependency
 
@@ -280,7 +287,7 @@ const handleSave = async () => {
         const mx = dragChain.mouseX;
         const my = dragChain.mouseY;
         let hitNodeId = null;
-        nodes.forEach(n => { if (mx >= n.x && mx <= n.x + 190 && my >= n.y && my <= n.y + 55) hitNodeId = n.id; });
+        nodes.forEach(n => { if (mx >= n.x && mx <= n.x + NODE_SIZE.w && my >= n.y && my <= n.y + NODE_SIZE.h) hitNodeId = n.id; });
         const sourceId = chain[0];
         if (!hitNodeId && editingNodeId === sourceId && chain.length === 1) {
           const sourceNode = linkageData[sourceId];
@@ -410,6 +417,8 @@ const handleSave = async () => {
           onUpdateNode={handleUpdateNode} 
           onCloseEditor={() => {setEditingNodeId(null); setMultiSelectedIds([]);}} 
           onDeleteNode={handleDeleteNode}
+          nodeSizeType={nodeSizeType}
+          setNodeSizeType={setNodeSizeType}
         />
         
         {/* MŨI TÊN VÀO ĐÂY -> ĐÂY LÀ "CHÌA KHÓA" ĐỂ THOÁT TÙ 
@@ -423,8 +432,9 @@ const handleSave = async () => {
           position: 'relative',
           height: '100%'
         }}>
-          <GraphViewport 
+          <GraphViewport
             viewportRef={viewportRef} 
+            nodeSize={NODE_SIZE}
             nodes={nodes} 
             edges={edges} 
             dragChain={dragChain} 
@@ -442,7 +452,7 @@ const handleSave = async () => {
                 setSliceLine({ startX: x, startY: y, endX: x, endY: y, isSelectMode: false });
                 setMultiSelectedIds([]);
               } else if (e.button === 0) { 
-                const hitNode = nodes.find(n => x >= n.x && x <= n.x + 190 && y >= n.y && y <= n.y + 55);
+                const hitNode = nodes.find(n => x >= n.x && x <= n.x + NODE_SIZE.w && y >= n.y && y <= n.y + NODE_SIZE.h);
                 if (!hitNode) { setEditingNodeId(null); setMultiSelectedIds([]); }
               }
             }}
